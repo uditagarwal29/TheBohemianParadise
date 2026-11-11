@@ -14,7 +14,8 @@
     "build": "npm --prefix frontend ci && npm --prefix frontend run build",
     "test": "node --test test/",
     "seed:admin": "node scripts/create-admin.js",
-    "migrate": "node scripts/migrate-v2.js"
+    "migrate": "node scripts/migrate-v2.js",
+    "postinstall": "node scripts/render-postinstall.js"
   },
   "license": "ISC",
   "dependencies": {
