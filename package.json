@@ -10,8 +10,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
+    "dev:stack": "node scripts/dev-stack.js",
+    "build": "npm --prefix frontend ci && npm --prefix frontend run build",
     "test": "node --test test/",
-    "seed:admin": "node scripts/create-admin.js"
+    "seed:admin": "node scripts/create-admin.js",
+    "migrate": "node scripts/migrate-v2.js"
   },
   "license": "ISC",
   "dependencies": {

@@ -9,14 +9,22 @@ prices/totals are always computed server-side.
 ```bash
 cp .env.example .env     # fill MONGO_URL and JWT_SECRET (openssl rand -hex 32)
 npm install
-npm run dev              # http://127.0.0.1:5000
-npm test                 # in-memory MongoDB, no services needed
+npm run build            # builds frontend/ into public/
+npm run dev              # http://127.0.0.1:5000 serves API + storefront
+npm test                 # backend tests, in-memory MongoDB
+
+# No MongoDB handy? Full demo stack with seeded sample art, nothing external:
+npm run dev:stack        # http://127.0.0.1:5000, admin@example.com / adminpass123
+
+# Frontend hot reload (proxies /api to :5000)
+cd frontend && npm install && npm run dev
 ```
 
 ## Deploy on Render
 
-Build command `npm ci`, start command `npm start`. Environment: `MONGO_URL`, `JWT_SECRET`, optionally
-`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CORS_ORIGINS`, `SHIPPING_FLAT`, `FREE_SHIPPING_ABOVE`.
+Build command `npm ci && npm run build`, start command `npm start`. Environment: `MONGO_URL`, `JWT_SECRET`, optionally
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CORS_ORIGINS`, `SHIPPING_FLAT`, `FREE_SHIPPING_ABOVE`, and
+`VITE_STRIPE_PUBLISHABLE_KEY` (read at build time by the storefront when Stripe is on).
 Render sets `PORT` and `RENDER` itself; the server binds `0.0.0.0` only when `RENDER` is present.
 Stripe webhook endpoint: `https://<host>/api/webhooks/stripe` (events `payment_intent.succeeded`,
 `payment_intent.payment_failed`, `payment_intent.canceled`, `charge.refunded`).
@@ -52,3 +60,13 @@ Errors are JSON `{ error, details? }`; `409` on checkout carries `details.proble
 
 Order statuses: `pending_payment → paid → processing → shipped → delivered`, plus `cancelled`, `payment_failed`
 (reservation expired or Stripe declined; stock returned automatically) and `refunded`.
+
+## Storefront (`frontend/`)
+
+Vite + React 18 + React Router, no state library: `src/store.jsx` holds auth and the bag.
+Guests keep their bag in `localStorage` and every change is re-priced through `POST /api/carts/validate`;
+on sign-in or registration the bag is merged into the account cart (`POST /api/carts/me/merge`).
+
+Pages: `/` home · `/products[/:category]?q=&sort=&inStock=1&page=` · `/product/:slug` · `/cart` · `/login` · `/register` ·
+`/checkout` · `/orders` · `/orders/:id` · `/account`. Checkout, orders and account require sign-in and bounce back via `?next=`.
+Stock states shown everywhere: *Sold out*, *Only N left*, *Original · 1 of 1*; quantity is capped to what is available.
