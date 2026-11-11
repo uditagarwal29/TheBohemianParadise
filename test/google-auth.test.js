@@ -1,6 +1,8 @@
 // Google sign-in: new account, linking to an existing email, password-less login message, set-password.
 process.env.JWT_SECRET = "test-secret-test-secret-test-secret-123456";
 process.env.MONGO_URL = "mongodb://127.0.0.1:1/placeholder";
+process.env.AUTH_RATE_LIMIT = "100000";
+process.env.OTP_COOLDOWN_SECONDS = "0";
 process.env.GOOGLE_CLIENT_ID = "test-client-id.apps.googleusercontent.com";
 
 const { test, before, after, beforeEach } = require("node:test");
@@ -11,6 +13,8 @@ const request = require("supertest");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const { buildApp } = require("../src/app");
+const { captureSender, registerUser } = require("./helpers");
+const otpSender = captureSender();
 const User = require("../src/modules/users/user.model");
 
 // Fake Google: token "good:<sub>:<email>" is valid; anything else throws like the real verifier.
@@ -26,7 +30,7 @@ const auth = (t) => ({ Authorization: `Bearer ${t}` });
 before(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
-  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public"), googleVerifier: fakeVerify });
+  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public"), googleVerifier: fakeVerify, otpSender });
 });
 after(async () => {
   await mongoose.disconnect();
@@ -38,7 +42,7 @@ beforeEach(async () => {
 
 test("providers endpoint advertises Google with the client id", async () => {
   const res = await request(app).get("/api/auth/providers");
-  assert.deepEqual(res.body, { password: true, google: { clientId: "test-client-id.apps.googleusercontent.com" } });
+  assert.deepEqual(res.body, { password: true, google: { clientId: "test-client-id.apps.googleusercontent.com" }, otp: { email: true, sms: true } });
 });
 
 test("first Google sign-in creates the account (201); second signs in (200); profile is public-safe", async () => {
@@ -64,8 +68,7 @@ test("first Google sign-in creates the account (201); second signs in (200); pro
 });
 
 test("Google links to an existing password account with the same email; both methods keep working", async () => {
-  const reg = await request(app).post("/api/auth/register").send({ name: "Priya", email: "priya@example.com", password: "buyerpass123" });
-  assert.equal(reg.status, 201);
+  const reg = { body: await registerUser(app, otpSender, { name: "Priya", email: "priya@example.com" }) };
   const g = await request(app).post("/api/auth/google").send({ idToken: "good:sub-9:priya@example.com" });
   assert.equal(g.status, 200, "existing account -> sign in, not create");
   assert.equal(g.body.user.id, reg.body.user.id);
@@ -91,7 +94,7 @@ test("password login on a Google-only account explains what to do; set-password 
   const g = await request(app).post("/api/auth/google").send({ idToken: "good:sub-4:g@example.com" });
   const pw = await request(app).post("/api/auth/login").send({ email: "g@example.com", password: "whatever123" });
   assert.equal(pw.status, 401);
-  assert.match(pw.body.error, /Google sign-in/);
+  assert.match(pw.body.error, /Google or a one-time code/);
 
   const set = await request(app).post("/api/auth/set-password").set(auth(g.body.accessToken)).send({ password: "newpass12345" });
   assert.equal(set.status, 200);

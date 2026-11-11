@@ -408,3 +408,15 @@ textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); borde
 .legal h2 { font-size: 1.1rem; margin: 26px 0 8px; }
 .legal p, .legal li { line-height: 1.65; }
 .legal ul { padding-left: 20px; display: grid; gap: 6px; }
+
+/* ---------- otp / auth steps ---------- */
+.otp { display: flex; flex-direction: column; gap: 12px; }
+.otp .link { align-self: flex-start; }
+.otp__code { font-size: 1.6rem; letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.segmented button { padding: 9px 10px; border: 0; background: #fff; font-weight: 600; color: var(--ink-soft); }
+.segmented button.is-active { background: var(--teal-soft); color: var(--teal-dark); }
+.steps { list-style: none; padding: 0; display: flex; gap: 8px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+.steps li { flex: 1; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+.steps li.is-current { color: var(--teal-dark); border-color: var(--teal); }
+.steps li.is-done { color: var(--ink); border-color: var(--ink); }

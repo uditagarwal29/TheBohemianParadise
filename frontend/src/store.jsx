@@ -130,7 +130,7 @@ export function StoreProvider({ children }) {
   );
 
   const login = useCallback(async (email, password) => finishLogin(await api.auth.login(email, password)), [finishLogin]);
-  const register = useCallback(async (name, email, password) => finishLogin(await api.auth.register(name, email, password)), [finishLogin]);
+  const register = useCallback(async (data) => finishLogin(await api.auth.register(data)), [finishLogin]);
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);

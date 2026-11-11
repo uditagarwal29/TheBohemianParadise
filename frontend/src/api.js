@@ -52,7 +52,10 @@ export const api = {
   },
   auth: {
     login: (email, password) => request("POST", "/auth/login", { email, password }, { auth: false }),
-    register: (name, email, password) => request("POST", "/auth/register", { name, email, password }, { auth: false }),
+    register: (data) => request("POST", "/auth/register", data, { auth: false }),
+    otpRequest: (data) => request("POST", "/auth/otp/request", data, { auth: false }),
+    otpVerify: (data) => request("POST", "/auth/otp/verify", data, { auth: false }),
+    resetPassword: (password) => request("POST", "/auth/reset-password", { password }),
     me: () => request("GET", "/auth/me"),
     providers: () => request("GET", "/auth/providers", undefined, { auth: false }),
     google: (idToken) => request("POST", "/auth/google", { idToken }, { auth: false }),

@@ -1,6 +1,8 @@
 // Admin surface: analytics, uploads, admin product/order lists, view counting.
 process.env.JWT_SECRET = "test-secret-test-secret-test-secret-123456";
 process.env.MONGO_URL = "mongodb://127.0.0.1:1/placeholder";
+process.env.AUTH_RATE_LIMIT = "100000";
+process.env.OTP_COOLDOWN_SECONDS = "0";
 process.env.STORAGE_DRIVER = "local";
 process.env.UPLOAD_DIR = require("path").join(__dirname, "fixtures", "uploads-tmp");
 process.env.MAX_UPLOAD_MB = "1";
@@ -14,6 +16,8 @@ const request = require("supertest");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const { buildApp } = require("../src/app");
+const { captureSender, registerUser } = require("./helpers");
+const otpSender = captureSender();
 const User = require("../src/modules/users/user.model");
 const Product = require("../src/modules/catalog/product.model");
 
@@ -27,7 +31,7 @@ const ADDRESS = { fullName: "Buyer", phone: "9999999999", line1: "1 Art Lane", c
 before(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
-  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public") });
+  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public"), otpSender });
 });
 after(async () => {
   await mongoose.disconnect();
@@ -44,7 +48,7 @@ async function seed() {
   await admin.setPassword("adminpass123");
   await admin.save();
   const adminToken = (await request(app).post("/api/auth/login").send({ email: "mom@example.com", password: "adminpass123" })).body.accessToken;
-  const buyerToken = (await request(app).post("/api/auth/register").send({ name: "B", email: "b@example.com", password: "buyerpass123" })).body.accessToken;
+  const buyerToken = (await registerUser(app, otpSender, { name: "B", email: "b@example.com" })).accessToken;
   const p1 = await Product.create({ title: "Original A", desc: "x", price: 4000, stock: 1, isOriginal: true, categories: ["nature"] });
   const p2 = await Product.create({ title: "Print B", desc: "x", price: 1000, categories: ["zodiac"], variants: [{ size: "A4", price: 1000, stock: 2 }] });
   return { adminToken, buyerToken, p1, p2 };

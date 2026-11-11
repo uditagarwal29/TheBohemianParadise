@@ -1,6 +1,8 @@
 // End-to-end walk of the customer journey against an in-memory MongoDB.
 process.env.JWT_SECRET = "test-secret-test-secret-test-secret-123456";
 process.env.MONGO_URL = "mongodb://127.0.0.1:1/placeholder";
+process.env.AUTH_RATE_LIMIT = "100000";
+process.env.OTP_COOLDOWN_SECONDS = "0";
 process.env.SHIPPING_FLAT = "100";
 process.env.FREE_SHIPPING_ABOVE = "2000";
 process.env.RESERVATION_MINUTES = "30";
@@ -12,6 +14,8 @@ const request = require("supertest");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const { buildApp } = require("../src/app");
+const { captureSender, registerUser } = require("./helpers");
+const otpSender = captureSender();
 const User = require("../src/modules/users/user.model");
 const Product = require("../src/modules/catalog/product.model");
 const Order = require("../src/modules/orders/order.model");
@@ -22,7 +26,7 @@ let mongod, app;
 before(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
-  app = buildApp({ publicDir: require("path").join(__dirname, "fixtures", "public") });
+  app = buildApp({ publicDir: require("path").join(__dirname, "fixtures", "public"), otpSender });
 });
 after(async () => {
   await mongoose.disconnect();
@@ -61,9 +65,7 @@ async function seed() {
 }
 
 async function register(email = "buyer@example.com", password = "buyerpass123") {
-  const res = await request(app).post("/api/auth/register").send({ name: "Buyer", email, password });
-  assert.equal(res.status, 201, JSON.stringify(res.body));
-  return res.body.accessToken;
+  return (await registerUser(app, otpSender, { email, password })).accessToken;
 }
 async function login(email, password) {
   const res = await request(app).post("/api/auth/login").send({ email, password });
@@ -144,7 +146,7 @@ test("auth: register, login, me; wrong password and duplicate email handled; pas
   assert.equal(me.body.user.password, undefined);
   assert.equal(me.body.user.passwordHash, undefined);
 
-  const dup = await request(app).post("/api/auth/register").send({ name: "x", email: "buyer@example.com", password: "whatever123" });
+  const dup = await request(app).post("/api/auth/otp/request").send({ purpose: "register", channel: "email", destination: "buyer@example.com" });
   assert.equal(dup.status, 409);
   const bad = await request(app).post("/api/auth/login").send({ email: "buyer@example.com", password: "wrongpass123" });
   assert.equal(bad.status, 401);
