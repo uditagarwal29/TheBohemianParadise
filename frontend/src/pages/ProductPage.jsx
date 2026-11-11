@@ -71,7 +71,8 @@ export default function ProductPage() {
             {showFrame ? (
               <div className="frame-preview">
                 <img src="/images/walltemplate.jpg" alt="" className="frame-preview__wall" />
-                <img src={images[img]} alt={product.title} className="frame-preview__art" />
+                <img src={images[img]} alt={`${product.title} framed on a wall`} className="frame-preview__art" />
+                <span className="frame-preview__hint">Preview · frame not included</span>
               </div>
             ) : images[img] ? (
               <img src={images[img]} alt={product.title} />
