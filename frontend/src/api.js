@@ -54,6 +54,9 @@ export const api = {
     login: (email, password) => request("POST", "/auth/login", { email, password }, { auth: false }),
     register: (name, email, password) => request("POST", "/auth/register", { name, email, password }, { auth: false }),
     me: () => request("GET", "/auth/me"),
+    providers: () => request("GET", "/auth/providers", undefined, { auth: false }),
+    google: (idToken) => request("POST", "/auth/google", { idToken }, { auth: false }),
+    setPassword: (password) => request("POST", "/auth/set-password", { password }),
   },
   cart: {
     validate: (items) => request("POST", "/carts/validate", { items }, { auth: false }),

@@ -17,8 +17,9 @@ const modules = [
   ["/api/admin", require("./modules/admin/admin.routes")],
 ];
 
-function buildApp({ publicDir = path.join(__dirname, "..", "public") } = {}) {
+function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVerifier } = {}) {
   const app = express();
+  if (googleVerifier) app.set("googleVerifier", googleVerifier); // tests inject a fake verifier
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Render terminates TLS in front of us
 

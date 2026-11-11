@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "../store";
 import { Alert, Field, useAsync } from "../components/ui";
+import GoogleButton from "../components/GoogleButton";
 
 export default function Register() {
   const { register } = useStore();
@@ -33,6 +34,7 @@ export default function Register() {
         <Field label="Password" hint="At least 8 characters"><input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" required minLength={8} /></Field>
         <Field label="Confirm password"><input type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" required minLength={8} /></Field>
         <button className="btn btn--primary btn--block" disabled={busy}>{busy ? "Creating…" : "Create account"}</button>
+        <GoogleButton text="signup_with" onSuccess={() => navigate(next, { replace: true })} />
         <p className="muted small">Already have one? <Link to={`/login?next=${encodeURIComponent(next)}`}>Sign in</Link></p>
       </form>
     </section>

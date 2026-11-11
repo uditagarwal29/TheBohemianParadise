@@ -24,7 +24,7 @@ export default function Account() {
   const changePassword = async (e) => {
     e.preventDefault();
     try {
-      await s.run(() => api.users.changePassword(pw.currentPassword, pw.newPassword));
+      await s.run(() => (user.hasPassword ? api.users.changePassword(pw.currentPassword, pw.newPassword) : api.auth.setPassword(pw.newPassword)));
       notify("Password changed. Please sign in again.", "success");
       logout();
     } catch {}
@@ -57,11 +57,12 @@ export default function Account() {
         </form>
 
         <form className="panel" onSubmit={changePassword}>
-          <h2>Password</h2>
+          <h2>{user.hasPassword ? "Password" : "Set a password"}</h2>
+          {user.googleLinked && <p className="muted small">Google sign-in is linked to this account{user.hasPassword ? "" : ". Add a password if you also want to sign in with email."}</p>}
           {s.error && <Alert kind="error">{s.error.message}</Alert>}
-          <Field label="Current password"><input type="password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} autoComplete="current-password" required /></Field>
-          <Field label="New password" hint="At least 8 characters"><input type="password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} autoComplete="new-password" minLength={8} required /></Field>
-          <button className="btn btn--primary" disabled={s.busy}>Change password</button>
+          {user.hasPassword && <Field label="Current password"><input type="password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} autoComplete="current-password" required /></Field>}
+          <Field label={user.hasPassword ? "New password" : "Password"} hint="At least 8 characters"><input type="password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} autoComplete="new-password" minLength={8} required /></Field>
+          <button className="btn btn--primary" disabled={s.busy}>{user.hasPassword ? "Change password" : "Set password"}</button>
         </form>
 
         <div className="panel panel--wide">

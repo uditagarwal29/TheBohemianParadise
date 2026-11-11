@@ -20,7 +20,11 @@ const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 80 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true, select: false },
+    // Absent for accounts created through Google sign-in until they set a password.
+    passwordHash: { type: String, select: false },
+    googleId: { type: String, index: true, sparse: true },
+    avatar: { type: String },
+    emailVerified: { type: Boolean, default: false },
     isAdmin: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false },
     // Bumped on password change: invalidates every token issued before.
@@ -45,6 +49,9 @@ userSchema.methods.toPublic = function () {
     name: this.name,
     email: this.email,
     isAdmin: this.isAdmin,
+    avatar: this.avatar,
+    hasPassword: Boolean(this.passwordHash),
+    googleLinked: Boolean(this.googleId),
     addresses: this.addresses,
     createdAt: this.createdAt,
   };

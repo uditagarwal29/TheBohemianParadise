@@ -395,3 +395,11 @@ textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); borde
 .chips--input input { border: 0; outline: 0; flex: 1; min-width: 140px; padding: 6px; }
 .summary__dl { display: grid; grid-template-columns: 1fr auto; row-gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .summary__dl dd { text-align: right; }
+
+/* ---------- google sign-in ---------- */
+.google-btn { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.google-btn__slot { display: flex; justify-content: center; width: 100%; min-height: 44px; }
+.google-btn__slot > div { width: 100% !important; }
+.or { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--ink-soft); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.nav__avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }

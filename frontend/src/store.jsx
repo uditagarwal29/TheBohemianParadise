@@ -145,6 +145,7 @@ export function StoreProvider({ children }) {
       setUser,
       login,
       register,
+      finishLogin,
       logout,
       cart,
       cartLoading,
@@ -156,7 +157,7 @@ export function StoreProvider({ children }) {
       toast,
       notify,
     }),
-    [user, authReady, login, register, logout, cart, cartLoading, refreshCart, addToCart, setQty, toast, notify]
+    [user, authReady, login, register, finishLogin, logout, cart, cartLoading, refreshCart, addToCart, setQty, toast, notify]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

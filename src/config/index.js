@@ -20,6 +20,8 @@ const config = {
   auth: {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    // Google Sign-In (OAuth client ID of type "Web application"). Empty = feature off.
+    googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   },
 
   http: {

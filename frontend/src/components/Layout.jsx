@@ -71,7 +71,7 @@ function Navbar() {
               <>
                 <NavLink to="/orders">Orders</NavLink>
               {user.isAdmin && <NavLink to="/admin" className="nav__admin">Admin</NavLink>}
-                <NavLink to="/account" className="nav__icon" title={user.name}><Icon.user /><span className="nav__name">{user.name.split(" ")[0]}</span></NavLink>
+                <NavLink to="/account" className="nav__icon" title={user.name}>{user.avatar ? <img className="nav__avatar" src={user.avatar} alt="" referrerPolicy="no-referrer" /> : <Icon.user />}<span className="nav__name">{user.name.split(" ")[0]}</span></NavLink>
                 <button className="nav__text" onClick={logout}>Sign out</button>
               </>
             ) : (

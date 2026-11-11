@@ -23,7 +23,7 @@ cd frontend && npm install && npm run dev
 ## Deploy on Render
 
 Build command `npm ci && npm run build`, start command `npm start`. Environment: `MONGO_URL`, `JWT_SECRET`, optionally
-`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CORS_ORIGINS`, `SHIPPING_FLAT`, `FREE_SHIPPING_ABOVE`, and
+`GOOGLE_CLIENT_ID` + `VITE_GOOGLE_CLIENT_ID`, `CLOUDINARY_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CORS_ORIGINS`, `SHIPPING_FLAT`, `FREE_SHIPPING_ABOVE`, and
 `VITE_STRIPE_PUBLISHABLE_KEY` (read at build time by the storefront when Stripe is on).
 Render sets `PORT` and `RENDER` itself; the server binds `0.0.0.0` only when `RENDER` is present.
 Stripe webhook endpoint: `https://<host>/api/webhooks/stripe` (events `payment_intent.succeeded`,
@@ -48,6 +48,12 @@ ADMIN_EMAIL=you@example.com node scripts/create-admin.js
 | Pay | | Stripe: confirm `clientSecret` in the browser, webhook marks `paid`. Manual: `POST /api/orders/:id/payment-reference`, admin marks `paid` |
 | Track | | `GET /api/orders/me`, `GET /api/orders/:id`, `POST /api/orders/:id/cancel` (while unpaid) |
 | Account | | `GET /api/auth/me`, `PATCH /api/users/me`, `POST /api/users/me/password`, `POST/DELETE /api/users/me/addresses` |
+
+**Google sign-in.** `GET /api/auth/providers` tells the UI what is on. `POST /api/auth/google { idToken }` verifies a
+Google ID token (Google Identity Services in the browser) and signs in, creating the account on first use or linking to an
+existing account with the same verified email. Google-only accounts can add a password with `POST /api/auth/set-password`.
+Enable by setting `GOOGLE_CLIENT_ID` (server) and `VITE_GOOGLE_CLIENT_ID` (frontend build) to the same OAuth Web client ID,
+with `https://tbp.onrender.com` (and `http://127.0.0.1:8080` for dev) in the client's *Authorized JavaScript origins*.
 
 Auth header: `Authorization: Bearer <token>` (legacy `token: Bearer <token>` still accepted).
 Errors are JSON `{ error, details? }`; `409` on checkout carries `details.problems` describing which lines sold out.

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "../store";
 import { Alert, Field, useAsync } from "../components/ui";
+import GoogleButton from "../components/GoogleButton";
 
 export default function Login() {
   const { login } = useStore();
@@ -30,6 +31,7 @@ export default function Login() {
         <Field label="Email"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required autoFocus /></Field>
         <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required minLength={8} /></Field>
         <button className="btn btn--primary btn--block" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        <GoogleButton text="signin_with" onSuccess={() => navigate(next, { replace: true })} />
         <p className="muted small">New here? <Link to={`/register?next=${encodeURIComponent(next)}`}>Create an account</Link></p>
       </form>
     </section>
