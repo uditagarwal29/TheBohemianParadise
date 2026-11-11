@@ -2,13 +2,13 @@
 // Usage: ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' ADMIN_NAME='Udit' node scripts/create-admin.js
 const mongoose = require("mongoose");
 const { config, assertConfig } = require("../src/config");
-const User = require("../src/models/User");
+const User = require("../src/modules/users/user.model");
 
 async function main() {
   assertConfig();
   const email = (process.env.ADMIN_EMAIL || "").toLowerCase().trim();
   if (!email) throw new Error("ADMIN_EMAIL is required");
-  await mongoose.connect(config.mongoUrl);
+  await mongoose.connect(config.db.url);
   let user = await User.findOne({ email }).select("+passwordHash");
   if (user) {
     user.isAdmin = true;

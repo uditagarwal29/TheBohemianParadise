@@ -7,7 +7,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const { config, assertConfig } = require("../src/config");
-const { slugify } = require("../src/models/Product");
+const { slugify } = require("../src/modules/catalog/product.model");
 
 const APPLY = process.argv.includes("--apply");
 
@@ -93,7 +93,7 @@ async function migrateOrdersAndCarts(db) {
 
 async function main() {
   assertConfig();
-  await mongoose.connect(config.mongoUrl);
+  await mongoose.connect(config.db.url);
   const db = mongoose.connection.db;
   console.log(APPLY ? "APPLYING changes" : "DRY RUN (pass --apply to write)");
   await migrateProducts(db);
@@ -101,9 +101,9 @@ async function main() {
   await migrateOrdersAndCarts(db);
   if (APPLY) {
     // Make sure new indexes exist.
-    await require("../src/models/Product").syncIndexes();
-    await require("../src/models/Order").syncIndexes();
-    await require("../src/models/Cart").syncIndexes();
+    await require("../src/modules/catalog/product.model").syncIndexes();
+    await require("../src/modules/orders/order.model").syncIndexes();
+    await require("../src/modules/cart/cart.model").syncIndexes();
   }
   await mongoose.disconnect();
 }

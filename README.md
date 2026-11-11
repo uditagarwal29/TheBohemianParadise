@@ -54,12 +54,26 @@ Errors are JSON `{ error, details? }`; `409` on checkout carries `details.proble
 
 ## Admin
 
+Sign in with an admin account and open `/admin` (also linked from the shop nav). Dashboard: revenue and
+orders over 30 days, orders awaiting your UPI confirmation, sales by theme, best sellers, most viewed,
+low stock, recent orders. Products: list with Live / Low / Sold out / Hidden filters, inline stock +/−,
+add/edit with drag-and-drop photo upload, per-size variants, themes, hide/restore. Orders: filter by
+status, search, confirm payment, ship with tracking, cancel/refund (returns stock). Customers: search,
+order history, promote/disable.
+
+Images go through `src/infrastructure/storage`: local disk in development, Cloudinary when
+`CLOUDINARY_URL` is set (required on Render, whose disk is wiped on deploy).
+
+API: `GET /api/admin/dashboard`, `/api/admin/analytics/*`, `/api/admin/settings`, `GET /api/products/admin/list`,
+`POST /api/products/images`, `POST/DELETE /api/products/:id/images`, `POST /api/products/:id/restore`,
 `POST/PATCH/DELETE /api/products`, `POST /api/products/:id/stock {delta,size?}`, `GET /api/orders?status=`,
 `PATCH /api/orders/:id/status {status,note?,tracking?}`, `GET /api/orders/income`, `GET /api/users`, `GET /api/users/stats`,
 `PATCH /api/users/:id {isAdmin?,disabled?}`. Product delete is a soft delete so past orders keep their reference.
 
 Order statuses: `pending_payment → paid → processing → shipped → delivered`, plus `cancelled`, `payment_failed`
 (reservation expired or Stripe declined; stock returned automatically) and `refunded`.
+
+See `ARCHITECTURE.md` for the module layout and the rules it follows.
 
 ## Storefront (`frontend/`)
 

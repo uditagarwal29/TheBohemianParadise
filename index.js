@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
 const { config, assertConfig } = require("./src/config");
 const { buildApp } = require("./src/app");
-const stock = require("./src/services/stock");
+const stock = require("./src/modules/inventory/stock.service");
 
 async function main() {
   assertConfig();
-  await mongoose.connect(config.mongoUrl, { serverSelectionTimeoutMS: 10_000 });
+  await mongoose.connect(config.db.url, { serverSelectionTimeoutMS: 10_000 });
   console.log("MongoDB connected");
 
   const app = buildApp();

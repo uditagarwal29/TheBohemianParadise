@@ -12,17 +12,17 @@ const request = require("supertest");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const { buildApp } = require("../src/app");
-const User = require("../src/models/User");
-const Product = require("../src/models/Product");
-const Order = require("../src/models/Order");
-const stock = require("../src/services/stock");
+const User = require("../src/modules/users/user.model");
+const Product = require("../src/modules/catalog/product.model");
+const Order = require("../src/modules/orders/order.model");
+const stock = require("../src/modules/inventory/stock.service");
 
 let mongod, app;
 
 before(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
-  app = buildApp();
+  app = buildApp({ publicDir: require("path").join(__dirname, "fixtures", "public") });
 });
 after(async () => {
   await mongoose.disconnect();

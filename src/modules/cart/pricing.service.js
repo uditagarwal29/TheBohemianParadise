@@ -1,5 +1,5 @@
-const Product = require("../models/Product");
-const { config } = require("../config");
+const Product = require("../catalog/product.model");
+const { config } = require("../../config");
 
 // Normalise raw cart lines ({productId,size,qty}) against the catalogue.
 // Returns priced lines plus a list of problems the customer must resolve
@@ -60,11 +60,11 @@ async function priceItems(rawItems) {
   }
 
   const subtotal = items.reduce((s, i) => s + i.lineTotal, 0);
-  let shipping = config.shippingFlat;
-  if (config.freeShippingAbove > 0 && subtotal >= config.freeShippingAbove) shipping = 0;
+  let shipping = config.store.shippingFlat;
+  if (config.store.freeShippingAbove > 0 && subtotal >= config.store.freeShippingAbove) shipping = 0;
   if (items.length === 0) shipping = 0;
 
-  return { items, problems, subtotal, shipping, total: subtotal + shipping, currency: config.currency };
+  return { items, problems, subtotal, shipping, total: subtotal + shipping, currency: config.store.currency };
 }
 
 module.exports = { priceItems };

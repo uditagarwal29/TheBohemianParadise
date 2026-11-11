@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
-const { config } = require("../config");
-const User = require("../models/User");
+const { config } = require("../../config");
+const User = require("../../modules/users/user.model");
 const { unauthorized, forbidden, wrap } = require("../errors");
 
 function extractToken(req) {
@@ -12,8 +12,8 @@ function extractToken(req) {
 }
 
 function signToken(user) {
-  return jwt.sign({ sub: user._id.toString(), v: user.tokenVersion || 0 }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
+  return jwt.sign({ sub: user._id.toString(), v: user.tokenVersion || 0 }, config.auth.jwtSecret, {
+    expiresIn: config.auth.jwtExpiresIn,
   });
 }
 
@@ -22,7 +22,7 @@ async function resolveUser(req) {
   if (!token) return null;
   let payload;
   try {
-    payload = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] });
+    payload = jwt.verify(token, config.auth.jwtSecret, { algorithms: ["HS256"] });
   } catch {
     throw unauthorized("Invalid or expired token");
   }

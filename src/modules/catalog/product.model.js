@@ -45,6 +45,9 @@ const productSchema = new mongoose.Schema(
     // Soft-hide instead of delete so past orders keep their reference.
     active: { type: Boolean, default: true, index: true },
     sold: { type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+    // Storage keys parallel to `images`, so uploads can be deleted from the provider.
+    imageKeys: { type: [String], default: [] },
   },
   { timestamps: true }
 );
@@ -82,6 +85,7 @@ productSchema.set("toJSON", {
     ret.inStock = doc.totalStock() > 0;
     ret.totalStock = doc.totalStock();
     delete ret.__v;
+    delete ret.imageKeys;
     return ret;
   },
 });

@@ -1,6 +1,6 @@
-const Product = require("../models/Product");
-const Order = require("../models/Order");
-const { conflict } = require("../errors");
+const Product = require("../catalog/product.model");
+const Order = require("../orders/order.model");
+const { conflict } = require("../../shared/errors");
 
 // Atomically decrement stock for one line. The filter guarantees we never go
 // below zero even when two customers check out the last piece at the same time.

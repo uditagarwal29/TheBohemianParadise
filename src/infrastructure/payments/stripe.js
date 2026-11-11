@@ -1,8 +1,8 @@
-const { config } = require("../config");
+const { config } = require("../../config");
 
 let stripe = null;
-if (config.stripeSecretKey) {
-  stripe = require("stripe")(config.stripeSecretKey);
+if (config.payments.stripeSecretKey) {
+  stripe = require("stripe")(config.payments.stripeSecretKey);
 }
 
 const ZERO_DECIMAL = new Set(["jpy", "krw", "vnd", "clp", "pyg", "xaf", "xof"]);
@@ -41,7 +41,7 @@ async function cancelPaymentIntent(intentId) {
 }
 
 function constructWebhookEvent(rawBody, signature) {
-  return stripe.webhooks.constructEvent(rawBody, signature, config.stripeWebhookSecret);
+  return stripe.webhooks.constructEvent(rawBody, signature, config.payments.stripeWebhookSecret);
 }
 
 module.exports = { enabled, createPaymentIntent, cancelPaymentIntent, constructWebhookEvent, toMinorUnits };

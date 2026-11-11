@@ -1,13 +1,13 @@
 const router = require("express").Router();
 const express = require("express");
-const Order = require("../models/Order");
-const stock = require("../services/stock");
-const payments = require("../services/payments");
-const { config } = require("../config");
+const Order = require("./order.model");
+const stock = require("../inventory/stock.service");
+const payments = require("../../infrastructure/payments/stripe");
+const { config } = require("../../config");
 
 // POST /api/webhooks/stripe  (raw body: Stripe signs the exact bytes)
-router.post("/stripe", express.raw({ type: "application/json" }), async (req, res) => {
-  if (!payments.enabled() || !config.stripeWebhookSecret) return res.status(503).json({ error: "Stripe not configured" });
+router.post("/", express.raw({ type: "application/json" }), async (req, res) => {
+  if (!payments.enabled() || !config.payments.stripeWebhookSecret) return res.status(503).json({ error: "Stripe not configured" });
   let event;
   try {
     event = payments.constructWebhookEvent(req.body, req.headers["stripe-signature"]);

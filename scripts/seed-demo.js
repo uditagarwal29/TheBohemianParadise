@@ -3,8 +3,8 @@
 //   SEED_DEMO=1 MONGO_URL=... JWT_SECRET=... node scripts/seed-demo.js
 const mongoose = require("mongoose");
 const { config, assertConfig } = require("../src/config");
-const Product = require("../src/models/Product");
-const User = require("../src/models/User");
+const Product = require("../src/modules/catalog/product.model");
+const User = require("../src/modules/users/user.model");
 
 const P = (n) => `/images/popularProducts/products_${n}.jpg`;
 const demo = [
@@ -28,7 +28,7 @@ const demo = [
 async function main() {
   if (process.env.SEED_DEMO !== "1") throw new Error("Refusing to seed: set SEED_DEMO=1 to confirm this is a development database");
   assertConfig();
-  await mongoose.connect(config.mongoUrl);
+  await mongoose.connect(config.db.url);
   await Product.deleteMany({});
   await Product.insertMany(demo.map((d) => new Product(d)));
   const email = process.env.ADMIN_EMAIL || "admin@example.com";

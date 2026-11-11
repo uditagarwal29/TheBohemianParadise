@@ -30,6 +30,7 @@ async function request(method, path, body, { auth = true } = {}) {
   return data;
 }
 
+
 const qs = (params) => {
   const sp = new URLSearchParams();
   Object.entries(params || {}).forEach(([k, v]) => v !== undefined && v !== "" && v !== null && sp.set(k, v));
@@ -81,3 +82,35 @@ export const api = {
 
 export const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 export const money = (n) => inr.format(n || 0);
+
+// ---- admin ------------------------------------------------------------------
+async function upload(path, files) {
+  const fd = new FormData();
+  for (const f of files) fd.append("images", f);
+  const res = await fetch(`/api${path}`, { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: fd });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data);
+  return data;
+}
+
+api.admin = {
+  dashboard: () => request("GET", "/admin/dashboard"),
+  settings: () => request("GET", "/admin/settings"),
+  revenueByDay: (days) => request("GET", `/admin/analytics/revenue-by-day${qs({ days })}`),
+  products: (params) => request("GET", `/products/admin/list${qs(params)}`),
+  product: (id) => request("GET", `/products/admin/${id}`),
+  createProduct: (data) => request("POST", "/products", data),
+  updateProduct: (id, data) => request("PATCH", `/products/${id}`, data),
+  adjustStock: (id, delta, size) => request("POST", `/products/${id}/stock`, { delta, size }),
+  hideProduct: (id) => request("DELETE", `/products/${id}`),
+  restoreProduct: (id) => request("POST", `/products/${id}/restore`),
+  uploadImages: (files) => upload("/products/images", files),
+  uploadProductImages: (id, files) => upload(`/products/${id}/images`, files),
+  removeImage: (id, url) => request("DELETE", `/products/${id}/images`, { url }),
+  orders: (params) => request("GET", `/orders${qs(params)}`),
+  order: (id) => request("GET", `/orders/admin/${id}`),
+  setOrderStatus: (id, body) => request("PATCH", `/orders/${id}/status`, body),
+  users: (params) => request("GET", `/users${qs(params)}`),
+  user: (id) => request("GET", `/users/${id}`),
+  updateUser: (id, body) => request("PATCH", `/users/${id}`, body),
+};

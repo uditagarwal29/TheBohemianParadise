@@ -70,6 +70,7 @@ function Navbar() {
             {user ? (
               <>
                 <NavLink to="/orders">Orders</NavLink>
+              {user.isAdmin && <NavLink to="/admin" className="nav__admin">Admin</NavLink>}
                 <NavLink to="/account" className="nav__icon" title={user.name}><Icon.user /><span className="nav__name">{user.name.split(" ")[0]}</span></NavLink>
                 <button className="nav__text" onClick={logout}>Sign out</button>
               </>

@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { addressSchema } = require("./User");
+const { addressSchema } = require("../users/user.model");
 
 const ORDER_STATUS = [
   "pending_payment", // created, stock reserved, waiting for Stripe / manual payment
