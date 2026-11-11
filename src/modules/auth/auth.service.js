@@ -2,73 +2,30 @@ const User = require("../users/user.model");
 const { signToken } = require("../../shared/middleware/auth");
 const { unauthorized, conflict, badRequest } = require("../../shared/errors");
 const google = require("../../infrastructure/auth/google");
-const { sender } = require("../../infrastructure/notify");
 const { config } = require("../../config");
-const otp = require("./otp.service");
 
-// ---- registration (requires a verified email or phone via OTP) ---------------
-
-async function register({ name, email, phone, password, verificationToken }) {
-  const verified = otp.readVerificationToken(verificationToken);
-  email = email.toLowerCase();
-  const phoneE164 = phone ? otp.normaliseDestination("sms", phone) : undefined;
-
-  // The verified destination must be one of the identifiers being registered.
-  const matchesEmail = verified.channel === "email" && verified.destination === email;
-  const matchesPhone = verified.channel === "sms" && phoneE164 && verified.destination === phoneE164;
-  if (!matchesEmail && !matchesPhone) throw badRequest("The verified contact doesn't match the details entered");
-
+async function register({ name, email, password }) {
   if (await User.exists({ email })) throw conflict("An account with this email already exists");
-  if (phoneE164 && (await User.exists({ phone: phoneE164 }))) throw conflict("An account with this mobile number already exists");
-
-  const user = new User({ name, email, phone: phoneE164, emailVerified: matchesEmail, phoneVerified: Boolean(matchesPhone) });
+  const user = new User({ name, email, emailVerified: false });
   await user.setPassword(password);
   await user.save();
   return { user: user.toPublic(), accessToken: signToken(user) };
 }
 
-// ---- password sign-in -----------------------------------------------------------
-
 async function login({ email, password }) {
   const user = await User.findOne({ email }).select("+passwordHash");
+  // Same message for unknown email and wrong password: don't leak which accounts exist.
   if (!user || user.disabled) throw unauthorized("Invalid email or password");
   if (!user.passwordHash) {
-    throw unauthorized("This account has no password yet. Sign in with Google or a one-time code, then set one from your account page.");
+    // Account exists but was created with Google. Tell them how to get in (the email is theirs; they just typed it).
+    throw unauthorized("This account uses Google sign-in. Continue with Google, or set a password from your account page after signing in.");
   }
   if (!(await user.verifyPassword(password))) throw unauthorized("Invalid email or password");
   return { user: user.toPublic(), accessToken: signToken(user) };
 }
 
-// ---- one-time codes ---------------------------------------------------------------
-
-const requestOtp = (data, ctx) => otp.request(data, ctx);
-
-async function verifyOtp({ purpose, channel, destination, code }) {
-  const verified = await otp.verify({ purpose, channel, destination, code });
-  if (purpose === "register") {
-    return { verified: true, channel, destination: verified.destination, verificationToken: otp.issueVerificationToken(verified) };
-  }
-  // login: the destination belongs to an existing account (request() only sent a code if it did)
-  const user = await otp.findUserByDestination(channel, verified.destination);
-  if (!user || user.disabled) throw unauthorized("Account not available");
-  if (channel === "email" && !user.emailVerified) user.emailVerified = true;
-  if (channel === "sms" && !user.phoneVerified) user.phoneVerified = true;
-  await user.save();
-  // `otp` + issued-at let /auth/reset-password accept a new password briefly without the old one.
-  return { user: user.toPublic(), accessToken: signToken(user, { via: "otp" }), canResetPassword: true };
-}
-
-// After an OTP sign-in (forgot password), set a new password within the reset window.
-async function resetPassword(user, authPayload, password) {
-  const fresh = authPayload?.via === "otp" && Date.now() / 1000 - authPayload.iat < config.otp.resetWindowMinutes * 60;
-  if (!fresh) throw unauthorized("Sign in with a one-time code first to reset your password");
-  const doc = await User.findById(user._id).select("+passwordHash");
-  await doc.setPassword(password); // bumps tokenVersion: all sessions, including this one, must sign in again
-  await doc.save();
-}
-
-// ---- google ------------------------------------------------------------------------
-
+// Sign in or sign up with a Google ID token. Links to an existing account with the
+// same verified email, so a customer who registered with a password can also use Google.
 async function loginWithGoogle({ idToken }, verify = google.verifyIdToken) {
   if (!google.enabled()) throw badRequest("Google sign-in is not available");
   let profile;
@@ -94,6 +51,7 @@ async function loginWithGoogle({ idToken }, verify = google.verifyIdToken) {
   return { user: user.toPublic(), accessToken: signToken(user), created };
 }
 
+// For Google-only accounts: set a first password (no current password to check).
 async function setInitialPassword(userId, password) {
   const user = await User.findById(userId).select("+passwordHash");
   if (user.passwordHash) throw badRequest("You already have a password; use change password instead");
@@ -106,12 +64,8 @@ async function logoutAll(user) {
   await user.save();
 }
 
-function providers(send = sender()) {
-  return {
-    password: true,
-    google: google.enabled() ? { clientId: config.auth.googleClientId } : false,
-    otp: { email: Boolean(send.channels.email), sms: Boolean(send.channels.sms) },
-  };
+function providers() {
+  return { password: true, google: google.enabled() ? { clientId: config.auth.googleClientId } : false };
 }
 
-module.exports = { register, login, requestOtp, verifyOtp, resetPassword, loginWithGoogle, setInitialPassword, logoutAll, providers };
+module.exports = { register, login, loginWithGoogle, setInitialPassword, logoutAll, providers };

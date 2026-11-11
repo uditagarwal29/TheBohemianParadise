@@ -28,7 +28,7 @@ const config = {
     corsOrigins: list("CORS_ORIGINS"),
     jsonLimit: "100kb",
     rateLimit: { windowMs: 60_000, limit: 300 },
-    authRateLimit: { windowMs: 15 * 60_000, limit: int("AUTH_RATE_LIMIT", 20) },
+    authRateLimit: { windowMs: 15 * 60_000, limit: 20 },
   },
 
   store: {
@@ -37,24 +37,6 @@ const config = {
     freeShippingAbove: int("FREE_SHIPPING_ABOVE", 0),
     reservationMinutes: int("RESERVATION_MINUTES", 30),
     manualReservationMinutes: int("MANUAL_RESERVATION_MINUTES", 24 * 60),
-  },
-
-  otp: {
-    ttlMinutes: int("OTP_TTL_MINUTES", 10),
-    maxAttempts: int("OTP_MAX_ATTEMPTS", 5),
-    cooldownSeconds: int("OTP_COOLDOWN_SECONDS", 45),
-    maxPerHour: int("OTP_MAX_PER_HOUR", 6),
-    verificationTokenMinutes: int("OTP_VERIFICATION_TOKEN_MINUTES", 20),
-    // Minutes after an OTP sign-in during which the password may be reset without the old one.
-    resetWindowMinutes: int("OTP_RESET_WINDOW_MINUTES", 15),
-  },
-
-  notify: {
-    smtpUrl: process.env.SMTP_URL || "",
-    emailFrom: process.env.EMAIL_FROM || "The Bohemian Paradise <no-reply@tbp.onrender.com>",
-    twilioSid: process.env.TWILIO_ACCOUNT_SID || "",
-    twilioToken: process.env.TWILIO_AUTH_TOKEN || "",
-    twilioFrom: process.env.TWILIO_FROM || "",
   },
 
   payments: {

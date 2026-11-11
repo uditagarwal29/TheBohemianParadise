@@ -49,15 +49,6 @@ ADMIN_EMAIL=you@example.com node scripts/create-admin.js
 | Track | | `GET /api/orders/me`, `GET /api/orders/:id`, `POST /api/orders/:id/cancel` (while unpaid) |
 | Account | | `GET /api/auth/me`, `PATCH /api/users/me`, `POST /api/users/me/password`, `POST/DELETE /api/users/me/addresses` |
 
-**One-time codes.** Registration requires a verified email or mobile: `POST /api/auth/otp/request {purpose:"register",
-channel:"email"|"sms", destination}` sends a 6-digit code, `POST /api/auth/otp/verify {…, code}` returns a short-lived
-`verificationToken`, and `POST /api/auth/register {name,email,phone?,password,verificationToken}` creates the account with that
-contact marked verified. Passwordless sign-in (also the forgot-password path) uses the same two calls with `purpose:"login"`;
-verify returns a session, and `POST /api/auth/reset-password {password}` is accepted for 15 minutes after an OTP sign-in.
-Codes are HMAC-hashed, expire in 10 min, lock after 5 wrong tries, one per 45 s and 6 per hour per destination. Email goes
-through `SMTP_URL` (any SMTP, e.g. Gmail app password), SMS through Twilio (`TWILIO_*`); with neither set, codes are logged to
-the server and shown in the UI outside production.
-
 **Google sign-in.** `GET /api/auth/providers` tells the UI what is on. `POST /api/auth/google { idToken }` verifies a
 Google ID token (Google Identity Services in the browser) and signs in, creating the account on first use or linking to an
 existing account with the same verified email. Google-only accounts can add a password with `POST /api/auth/set-password`.

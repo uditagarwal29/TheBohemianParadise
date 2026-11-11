@@ -11,8 +11,8 @@ function extractToken(req) {
   return null;
 }
 
-function signToken(user, extra = {}) {
-  return jwt.sign({ sub: user._id.toString(), v: user.tokenVersion || 0, ...extra }, config.auth.jwtSecret, {
+function signToken(user) {
+  return jwt.sign({ sub: user._id.toString(), v: user.tokenVersion || 0 }, config.auth.jwtSecret, {
     expiresIn: config.auth.jwtExpiresIn,
   });
 }
@@ -31,7 +31,6 @@ async function resolveUser(req) {
   const user = await User.findById(payload.sub);
   if (!user || user.disabled) throw unauthorized("Account not available");
   if ((user.tokenVersion || 0) !== (payload.v || 0)) throw unauthorized("Session expired, sign in again");
-  req.authPayload = payload;
   return user;
 }
 
