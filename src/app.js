@@ -53,7 +53,7 @@ function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVeri
   // Static storefront (Vite build in /public) with SPA fallback for client routes.
   app.use(express.static(publicDir, { maxAge: "1h", index: "index.html" }));
   app.get("*", (req, res, next) => {
-    if (req.method !== "GET" || req.path.startsWith("/api/") || req.path.startsWith("/uploads/")) return next();
+    if (!["GET", "HEAD"].includes(req.method) || req.path.startsWith("/api/") || req.path.startsWith("/uploads/")) return next();
     res.sendFile(path.join(publicDir, "index.html"));
   });
 
