@@ -156,10 +156,10 @@ main { flex: 1; }
 .product__main { aspect-ratio: 4 / 5; background: #f7f7f7; border-radius: var(--radius); overflow: hidden; display: grid; place-items: center; }
 .product__main > img { width: 100%; height: 100%; object-fit: contain; }
 .product__main--framed { aspect-ratio: 1000 / 846; background: #e9e9e9; }
-/* walltemplate.jpg is 1000x846; the frame's opening sits at x 38.8-68.8%, y 14.8-62.1% */
+/* walltemplate.jpg is 1000x846; the frame opening (inner edge of the black bars) is x 386-689 px, y 121-526 px */
 .frame-preview { position: relative; width: 100%; height: 100%; }
 .frame-preview__wall { width: 100%; height: 100%; object-fit: fill; display: block; }
-.frame-preview__art { position: absolute; left: 38.8%; top: 14.8%; width: 30%; height: 47.3%; object-fit: cover; object-position: center; background: #fff; }
+.frame-preview__art { position: absolute; left: 38.55%; top: 14.25%; width: 30.4%; height: 48%; object-fit: cover; object-position: center; background: #fff; }
 .frame-preview__hint { position: absolute; left: 12px; bottom: 12px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; background: rgba(255,255,255,0.85); color: var(--ink-soft); padding: 4px 8px; border-radius: 4px; }
 .product__thumbs { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .product__thumbs button { width: 70px; height: 70px; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: #f1f1f1; font-size: 0.72rem; font-weight: 700; }
