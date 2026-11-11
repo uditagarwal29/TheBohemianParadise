@@ -23,7 +23,16 @@ function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVeri
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Render terminates TLS in front of us
 
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginResourcePolicy: { policy: "cross-origin" } }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      // Google Sign-In opens a popup that must talk back to this window; the default
+      // "same-origin" COOP severs that channel and GIS falls back to a full-page redirect.
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    })
+  );
   if (config.http.corsOrigins.length) {
     app.use(cors({ origin: config.http.corsOrigins, credentials: false, methods: ["GET", "POST", "PUT", "PATCH", "DELETE"] }));
   }
