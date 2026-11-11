@@ -403,3 +403,8 @@ textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); borde
 .or { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--ink-soft); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .nav__avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+
+.legal { max-width: 760px; }
+.legal h2 { font-size: 1.1rem; margin: 26px 0 8px; }
+.legal p, .legal li { line-height: 1.65; }
+.legal ul { padding-left: 20px; display: grid; gap: 6px; }

@@ -9,6 +9,7 @@ import CartPage from "./pages/CartPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import { Privacy, Terms } from "./pages/Legal";
 
 const Checkout = lazy(() => import("./pages/Checkout"));
 const OrderPage = lazy(() => import("./pages/OrderPage"));
@@ -66,6 +67,8 @@ export default function App() {
         <Route path="/orders" element={<RequireAuth><Orders /></RequireAuth>} />
         <Route path="/orders/:id" element={<RequireAuth><OrderPage /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="products" element={<AdminProducts />} />

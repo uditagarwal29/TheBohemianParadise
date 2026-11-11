@@ -120,7 +120,7 @@ function Footer() {
           <li><a href={`mailto:${contact.email}`}>{contact.email}</a></li>
         </ul>
       </div>
-      <div className="footer__bottom">© {new Date().getFullYear()} The Bohemian Paradise</div>
+      <div className="footer__bottom">© {new Date().getFullYear()} The Bohemian Paradise · <Link to="/privacy">Privacy</Link> · <Link to="/terms">Terms</Link></div>
     </footer>
   );
 }
