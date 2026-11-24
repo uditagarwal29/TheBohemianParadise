@@ -11,7 +11,7 @@ cp .env.example .env     # fill MONGO_URL and JWT_SECRET (openssl rand -hex 32)
 npm install
 npm run build            # builds frontend/ into public/
 npm run dev              # http://127.0.0.1:5000 serves API + storefront
-npm test                 # backend tests, in-memory MongoDB
+npm test                 # HTTP tests (in-memory MongoDB) + unit tests of the pattern classes
 
 # No MongoDB handy? Full demo stack with seeded sample art, nothing external:
 npm run dev:stack        # http://127.0.0.1:5000, admin@example.com / adminpass123
@@ -79,7 +79,7 @@ API: `GET /api/admin/dashboard`, `/api/admin/analytics/*`, `/api/admin/settings`
 Order statuses: `pending_payment → paid → processing → shipped → delivered`, plus `cancelled`, `payment_failed`
 (reservation expired or Stripe declined; stock returned automatically) and `refunded`.
 
-See `ARCHITECTURE.md` for the module layout and the rules it follows.
+See `ARCHITECTURE.md` for the module layout, the SOLID/pattern map and the rules it follows.
 
 ## Storefront (`frontend/`)
 

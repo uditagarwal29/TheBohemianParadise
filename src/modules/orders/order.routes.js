@@ -1,54 +1,71 @@
-const router = require("express").Router();
-const { ORDER_STATUS } = require("./order.model");
-const { requireAuth, requireAdmin } = require("../../shared/middleware/auth");
+const { Router } = require("express");
+const express = require("express");
+const { STATES } = require("./order-state");
 const { validate } = require("../../shared/http/validate");
 const { controller, pageParams } = require("../../shared/http/respond");
 const { forbidden } = require("../../shared/errors");
-const service = require("./order.service");
+const { addressShape } = require("../users/user.routes");
 
-const addressShape = {
-  fullName: { type: "string", required: true, max: 80 },
-  phone: { type: "string", required: true, max: 20 },
-  line1: { type: "string", required: true, max: 120 },
-  line2: { type: "string", max: 120 },
-  city: { type: "string", required: true, max: 60 },
-  state: { type: "string", required: true, max: 60 },
-  postalCode: { type: "string", required: true, max: 12 },
-  country: { type: "string", max: 2 },
-};
-
-router.get("/payment-methods", controller(() => service.paymentMethods()));
-
-router.post("/checkout", requireAuth, validate({
+const { label: _label, ...shippingAddressShape } = addressShape; // eslint-disable-line no-unused-vars
+const checkoutShape = {
   items: { type: "array", max: 50, items: { type: "object", shape: { productId: { type: "objectId", required: true }, size: { type: "string", max: 20 }, qty: { type: "integer", required: true, min: 1, max: 20 } } } },
   addressId: { type: "objectId" },
-  shippingAddress: { type: "object", shape: addressShape },
+  shippingAddress: { type: "object", shape: shippingAddressShape },
   paymentMethod: { type: "string", required: true, enum: ["stripe", "manual"] },
   customerNote: { type: "string", max: 500 },
-}), controller(async (req) => ({ status: 201, body: await service.checkout(req.user, req.data) })));
+};
 
-router.get("/me", requireAuth, controller(async (req) => ({ orders: await service.listMine(req.user._id) })));
+function orderRoutes({ checkout, orderService: orders, guards }) {
+  const router = Router();
+  const { requireAuth, requireAdmin } = guards;
 
-// Legacy path used by the old frontend.
-router.get("/find/:userId", requireAuth, controller((req) => {
-  if (!req.user.isAdmin && req.user._id.toString() !== req.params.userId) throw forbidden();
-  return service.listMine(req.params.userId);
-}));
+  router.get("/payment-methods", controller(() => checkout.paymentOptions()));
+  router.post("/checkout", requireAuth, validate(checkoutShape), controller(async (req) => ({ status: 201, body: await checkout.checkout(req.user, req.data) })));
+  router.get("/me", requireAuth, controller(async (req) => ({ orders: await orders.listMine(req.user._id) })));
+  router.get("/find/:userId", requireAuth, controller((req) => { // legacy path
+    if (!req.user.isAdmin && req.user._id.toString() !== req.params.userId) throw forbidden();
+    return orders.listMine(req.params.userId);
+  }));
 
-// ---- admin (declared before /:id) ------------------------------------------
-router.get("/", requireAdmin, controller((req) => service.adminList({ status: req.query.status, q: req.query.q, ...pageParams(req.query, { defaultLimit: 50, maxLimit: 200 }) })));
-router.get("/income", requireAdmin, controller(() => service.incomeByMonth()));
-router.get("/admin/:id", requireAdmin, controller(async (req) => ({ order: await service.adminGet(req.params.id) })));
-router.patch("/:id/status", requireAdmin, validate({
-  status: { type: "string", required: true, enum: ORDER_STATUS },
-  note: { type: "string", max: 500 },
-  tracking: { type: "object", shape: { carrier: { type: "string", max: 60 }, number: { type: "string", max: 80 }, url: { type: "string", max: 300 } } },
-}), controller(async (req) => ({ order: await service.setStatus(req.params.id, req.data) })));
+  // admin (declared before /:id)
+  router.get("/", requireAdmin, controller((req) => orders.adminList({ status: req.query.status, q: req.query.q, ...pageParams(req.query, { defaultLimit: 50, maxLimit: 200 }) })));
+  router.get("/income", requireAdmin, controller(() => orders.incomeByMonth()));
+  router.get("/admin/:id", requireAdmin, controller(async (req) => ({ order: await orders.adminGet(req.params.id) })));
+  router.patch("/:id/status", requireAdmin, validate({
+    status: { type: "string", required: true, enum: STATES },
+    note: { type: "string", max: 500 },
+    tracking: { type: "object", shape: { carrier: { type: "string", max: 60 }, number: { type: "string", max: 80 }, url: { type: "string", max: 300 } } },
+  }), controller(async (req) => ({ order: await orders.setStatus(req.params.id, req.data) })));
 
-// ---- single order (owner or admin) ------------------------------------------
-router.get("/:id", requireAuth, controller(async (req) => ({ order: await service.getOwned(req.user, req.params.id) })));
-router.post("/:id/cancel", requireAuth, controller(async (req) => ({ order: await service.cancel(req.user, req.params.id) })));
-router.post("/:id/payment-reference", requireAuth, validate({ reference: { type: "string", required: true, min: 4, max: 120 } }),
-  controller(async (req) => ({ order: await service.submitPaymentReference(req.user, req.params.id, req.data.reference) })));
+  // single order (owner or admin)
+  router.get("/:id", requireAuth, controller(async (req) => ({ order: await orders.getOwned(req.user, req.params.id) })));
+  router.post("/:id/cancel", requireAuth, controller(async (req) => ({ order: await orders.cancel(req.user, req.params.id) })));
+  router.post("/:id/payment-reference", requireAuth, validate({ reference: { type: "string", required: true, min: 4, max: 120 } }),
+    controller(async (req) => ({ order: await orders.submitPaymentReference(req.user, req.params.id, req.data.reference) })));
+  return router;
+}
 
-module.exports = router;
+// Payment-provider webhook. Mounted before express.json() because the signature covers the raw bytes.
+function webhookRoutes({ gateway, orderService: orders }) {
+  const router = Router();
+  router.post("/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+    if (!gateway.enabled) return res.status(503).json({ error: "Stripe not configured" });
+    let evt;
+    try {
+      evt = gateway.parseWebhook(req.body, req.headers["stripe-signature"]);
+    } catch (e) {
+      return res.status(400).json({ error: `Invalid signature: ${e.message}` });
+    }
+    if (!evt) return res.json({ received: true, ignored: "unhandled event type" });
+    try {
+      res.json({ received: true, ...(await orders.handleGatewayEvent(evt)) });
+    } catch (e) {
+      console.error("webhook handling failed", e);
+      res.status(500).json({ error: "handler failed" }); // 500 makes Stripe retry
+    }
+  });
+  return router;
+}
+
+module.exports = orderRoutes;
+module.exports.webhookRoutes = webhookRoutes;

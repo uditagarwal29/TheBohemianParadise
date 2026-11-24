@@ -1,7 +1,5 @@
-const Product = require("./product.model");
-const { storage } = require("../../infrastructure/storage");
+const { ProductRepository } = require("./product.repository");
 const { notFound, badRequest } = require("../../shared/errors");
-const { OBJECT_ID } = require("../../shared/http/validate");
 
 const SORTS = {
   newest: { createdAt: -1 },
@@ -11,130 +9,142 @@ const SORTS = {
   popular: { sold: -1, views: -1, createdAt: -1 },
 };
 
-function publicFilter({ category, q, inStock, featured, min, max }) {
-  const filter = { active: true };
-  if (category) filter.categories = String(category).toLowerCase();
-  if (featured === "1" || featured === "true") filter.featured = true;
-  if (min || max) {
-    filter.price = {};
-    if (min) filter.price.$gte = Number(min);
-    if (max) filter.price.$lte = Number(max);
+class CatalogService {
+  constructor({ products, storage, events }) {
+    this.products = products;
+    this.storage = storage;
+    this.events = events;
   }
-  if (inStock === "1" || inStock === "true") filter.$or = [{ stock: { $gt: 0 } }, { "variants.stock": { $gt: 0 } }];
-  if (q) filter.$text = { $search: String(q).slice(0, 100) };
-  return filter;
-}
 
-async function list(query, { page, limit, skip }, paged) {
-  const filter = publicFilter(query);
-  const sort = SORTS[query.sort] || SORTS.newest;
-  if (query.new) return Product.find(filter).sort({ createdAt: -1 }).limit(1); // legacy
-  if (!paged) return Product.find(filter).sort(sort).limit(500);
-  const [items, total] = await Promise.all([Product.find(filter).sort(sort).skip(skip).limit(limit), Product.countDocuments(filter)]);
-  return { items, page, limit, total, pages: Math.ceil(total / limit) };
-}
+  // ---- public ------------------------------------------------------------------
 
-async function categories() {
-  const rows = await Product.aggregate([
-    { $match: { active: true } },
-    { $unwind: "$categories" },
-    { $group: { _id: "$categories", count: { $sum: 1 } } },
-    { $sort: { _id: 1 } },
-  ]);
-  return rows.map((r) => ({ name: r._id, count: r.count }));
-}
-
-async function getPublic(idOrSlug, { countView = false } = {}) {
-  const match = OBJECT_ID.test(idOrSlug) ? { _id: idOrSlug } : { slug: idOrSlug };
-  const product = countView
-    ? await Product.findOneAndUpdate({ ...match, active: true }, { $inc: { views: 1 } }, { new: true })
-    : await Product.findOne({ ...match, active: true });
-  if (!product) throw notFound("Product not found");
-  return product;
-}
-
-// ---- admin ----------------------------------------------------------------
-
-async function adminList({ q, status, category, page, limit, skip }) {
-  const filter = {};
-  if (status === "active") filter.active = true;
-  if (status === "hidden") filter.active = false;
-  if (status === "sold_out") filter.$and = [{ stock: { $lte: 0 } }, { $nor: [{ "variants.stock": { $gt: 0 } }] }];
-  if (status === "low") filter.$or = [{ variants: { $size: 0 }, stock: { $gt: 0, $lte: 2 } }, { "variants.stock": { $gt: 0, $lte: 2 } }];
-  if (category) filter.categories = String(category).toLowerCase();
-  if (q) filter.$text = { $search: String(q).slice(0, 100) };
-  const [items, total] = await Promise.all([Product.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit), Product.countDocuments(filter)]);
-  return { items, page, limit, total, pages: Math.ceil(total / limit) };
-}
-
-async function getAny(id) {
-  const product = await Product.findById(id);
-  if (!product) throw notFound("Product not found");
-  return product;
-}
-
-async function create(data) {
-  for (const k of ["title", "desc", "price"]) if (data[k] === undefined) throw badRequest(`${k} is required`);
-  return Product.create(data);
-}
-
-async function update(id, data) {
-  const product = await getAny(id);
-  Object.assign(product, data);
-  if (data.images) product.img = data.images;
-  await product.save();
-  return product;
-}
-
-async function adjustStock(id, { delta, size }) {
-  const product = await getAny(id);
-  if (product.variants.length) {
-    const v = product.variants.find((x) => x.size === size);
-    if (!v) throw badRequest("Unknown size");
-    if (v.stock + delta < 0) throw badRequest("Stock cannot go negative");
-    v.stock += delta;
-  } else {
-    if (product.stock + delta < 0) throw badRequest("Stock cannot go negative");
-    product.stock += delta;
+  static publicFilter({ category, q, inStock, featured, min, max }) {
+    const filter = { active: true };
+    if (category) filter.categories = String(category).toLowerCase();
+    if (featured === "1" || featured === "true") filter.featured = true;
+    if (min || max) {
+      filter.price = {};
+      if (min) filter.price.$gte = Number(min);
+      if (max) filter.price.$lte = Number(max);
+    }
+    if (inStock === "1" || inStock === "true") filter.$or = [{ stock: { $gt: 0 } }, { "variants.stock": { $gt: 0 } }];
+    if (q) filter.$text = { $search: String(q).slice(0, 100) };
+    return filter;
   }
-  await product.save();
-  return product;
-}
 
-async function setActive(id, active) {
-  const product = await Product.findByIdAndUpdate(id, { active }, { new: true });
-  if (!product) throw notFound("Product not found");
-  return product;
-}
+  async list(query, { page, limit, skip }, paged) {
+    const filter = CatalogService.publicFilter(query);
+    const sort = SORTS[query.sort] || SORTS.newest;
+    if (query.new) return this.products.find(filter, { sort: { createdAt: -1 }, limit: 1 }); // legacy
+    if (!paged) return this.products.find(filter, { sort, limit: 500 });
+    return this.products.findPage(filter, { sort, page, limit, skip });
+  }
 
-// Upload files -> URLs; optionally append to a product's gallery.
-async function uploadImages(files, productId) {
-  const uploaded = [];
-  for (const f of files) uploaded.push(await storage().put({ buffer: f.buffer, mimetype: f.mimetype, originalName: f.originalname }));
-  if (productId) {
-    const product = await getAny(productId);
+  categories() {
+    return this.products.categoryCounts();
+  }
+
+  async getPublic(idOrSlug, { viewer } = {}) {
+    const product = await this.products.findPublic(idOrSlug);
+    if (!product) throw notFound("Product not found");
+    if (!viewer?.isAdmin) await this.events.emit("product.viewed", { product, viewer });
+    return product;
+  }
+
+  // ---- admin ------------------------------------------------------------------
+
+  adminList({ q, status, category, page, limit, skip }) {
+    const filter = {};
+    if (status === "active") filter.active = true;
+    if (status === "hidden") filter.active = false;
+    if (status === "sold_out") Object.assign(filter, ProductRepository.soldOutFilter());
+    if (status === "low") Object.assign(filter, ProductRepository.lowStockFilter());
+    if (category) filter.categories = String(category).toLowerCase();
+    if (q) filter.$text = { $search: String(q).slice(0, 100) };
+    return this.products.findPage(filter, { sort: { updatedAt: -1 }, page, limit, skip });
+  }
+
+  async getAny(id) {
+    const product = await this.products.findById(id);
+    if (!product) throw notFound("Product not found");
+    return product;
+  }
+
+  async create(data) {
+    for (const k of ["title", "desc", "price"]) if (data[k] === undefined) throw badRequest(`${k} is required`);
+    const product = await this.products.create(data);
+    await this.events.emit("product.changed", { product, change: "created" });
+    return product;
+  }
+
+  async update(id, data) {
+    const product = await this.getAny(id);
+    Object.assign(product, data);
+    if (data.images) product.img = data.images;
+    await this.products.save(product);
+    await this.events.emit("product.changed", { product, change: "updated" });
+    return product;
+  }
+
+  async adjustStock(id, { delta, size }) {
+    const product = await this.getAny(id);
+    if (product.variants.length) {
+      const v = product.variants.find((x) => x.size === size);
+      if (!v) throw badRequest("Unknown size");
+      if (v.stock + delta < 0) throw badRequest("Stock cannot go negative");
+      v.stock += delta;
+    } else {
+      if (product.stock + delta < 0) throw badRequest("Stock cannot go negative");
+      product.stock += delta;
+    }
+    await this.products.save(product);
+    await this.events.emit("product.changed", { product, change: "stock" });
+    return product;
+  }
+
+  async setActive(id, active) {
+    const product = await this.products.findByIdAndUpdate(id, { active });
+    if (!product) throw notFound("Product not found");
+    await this.events.emit("product.changed", { product, change: active ? "restored" : "hidden" });
+    return product;
+  }
+
+  async uploadImages(files, productId) {
+    const uploaded = [];
+    for (const f of files) uploaded.push(await this.storage.put({ buffer: f.buffer, mimetype: f.mimetype, originalName: f.originalname }));
+    if (!productId) return { uploaded };
+    const product = await this.getAny(productId);
     product.images.push(...uploaded.map((u) => u.url));
     product.img = product.images;
     product.imageKeys = [...(product.imageKeys || []), ...uploaded.map((u) => u.key)];
-    await product.save();
+    await this.products.save(product);
+    await this.events.emit("product.changed", { product, change: "images" });
     return { uploaded, product };
   }
-  return { uploaded };
-}
 
-async function removeImage(productId, url) {
-  const product = await getAny(productId);
-  const idx = product.images.indexOf(url);
-  if (idx < 0) throw notFound("Image not on this product");
-  product.images.splice(idx, 1);
-  const key = product.imageKeys?.[idx];
-  if (key) {
-    product.imageKeys.splice(idx, 1);
-    await storage().remove(key).catch(() => {});
+  async removeImage(productId, url) {
+    const product = await this.getAny(productId);
+    const idx = product.images.indexOf(url);
+    if (idx < 0) throw notFound("Image not on this product");
+    product.images.splice(idx, 1);
+    const key = product.imageKeys?.[idx];
+    if (key) {
+      product.imageKeys.splice(idx, 1);
+      await this.storage.remove(key).catch(() => {});
+    }
+    product.img = product.images;
+    await this.products.save(product);
+    await this.events.emit("product.changed", { product, change: "images" });
+    return product;
   }
-  product.img = product.images;
-  await product.save();
-  return product;
 }
 
-module.exports = { list, categories, getPublic, adminList, getAny, create, update, adjustStock, setActive, uploadImages, removeImage, SORTS };
+// Observer: view counting lives here, not in the read path of the service.
+function registerCatalogListeners({ events, products }) {
+  events.on("product.viewed", async ({ product }) => {
+    await products.incrementViews(product._id);
+    product.views += 1; // keep the document being returned in step with the database
+  });
+}
+
+module.exports = { CatalogService, registerCatalogListeners, SORTS };

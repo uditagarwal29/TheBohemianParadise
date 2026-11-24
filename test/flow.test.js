@@ -15,7 +15,6 @@ const { buildApp } = require("../src/app");
 const User = require("../src/modules/users/user.model");
 const Product = require("../src/modules/catalog/product.model");
 const Order = require("../src/modules/orders/order.model");
-const stock = require("../src/modules/inventory/stock.service");
 
 let mongod, app;
 
@@ -302,7 +301,7 @@ test("checkout: all-or-nothing reservation; cancel releases stock; expired reser
   const again = await request(app).post("/api/orders/checkout").set(auth(token)).send({ paymentMethod: "manual", shippingAddress: ADDRESS, items: [{ productId: original._id, qty: 1 }] });
   assert.equal(again.status, 201);
   await Order.updateOne({ _id: again.body.order._id }, { reservedUntil: new Date(Date.now() - 1000) });
-  assert.equal(await stock.expireStaleReservations(), 1);
+  assert.equal(await app.get("container").sweeper.runOnce(), 1);
   assert.equal((await Order.findById(again.body.order._id)).status, "payment_failed");
   assert.equal((await Product.findById(original._id)).stock, 1);
 });

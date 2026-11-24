@@ -1,84 +1,68 @@
-const Product = require("../catalog/product.model");
-const Order = require("../orders/order.model");
 const { conflict } = require("../../shared/errors");
 
-// Atomically decrement stock for one line. The filter guarantees we never go
-// below zero even when two customers check out the last piece at the same time.
-async function reserveLine({ productId, size, qty }) {
-  const filter = { _id: productId, active: true };
-  const update = {};
-  if (size) {
-    filter.variants = { $elemMatch: { size, stock: { $gte: qty } } };
-    update.$inc = { "variants.$.stock": -qty };
-  } else {
-    filter.stock = { $gte: qty };
-    update.$inc = { stock: -qty };
+// Owns stock movements. Subscribes to order events (Observer) so orders never call inventory
+// directly: paid -> count sales, cancelled/refunded/payment_failed -> return stock.
+class StockService {
+  constructor({ products, orders, events }) {
+    this.products = products;
+    this.orders = orders;
+    events.on("order.paid", ({ order }) => this.markSold(order));
+    events.on("order.cancelled", ({ order }) => this.releaseOrder(order));
+    events.on("order.refunded", ({ order }) => this.releaseOrder(order, "Refunded, stock returned"));
+    events.on("order.payment_failed", ({ order }) => this.releaseOrder(order));
   }
-  const res = await Product.updateOne(filter, update);
-  return res.modifiedCount === 1;
-}
 
-async function releaseLine({ productId, size, qty }) {
-  if (size) {
-    await Product.updateOne({ _id: productId, "variants.size": size }, { $inc: { "variants.$.stock": qty } });
-  } else {
-    await Product.updateOne({ _id: productId }, { $inc: { stock: qty } });
-  }
-}
-
-// Reserve every line or none. Without transactions (Atlas free tier may lack a
-// replica set) we roll back the lines that succeeded if a later one fails.
-async function reserveAll(items) {
-  const done = [];
-  for (const item of items) {
-    const ok = await reserveLine(item);
-    if (!ok) {
-      for (const d of done) await releaseLine(d);
-      throw conflict("Some items just sold out", { productId: item.productId, size: item.size });
+  // Reserve every line or none. Without transactions (Atlas free tier may lack a replica set)
+  // we roll back the lines that succeeded if a later one fails.
+  async reserveAll(items) {
+    const done = [];
+    for (const item of items) {
+      if (!(await this.products.reserve(item))) {
+        for (const d of done) await this.products.release(d);
+        throw conflict("Some items just sold out", { productId: item.productId, size: item.size });
+      }
+      done.push(item);
     }
-    done.push(item);
+  }
+
+  async releaseOrder(order, note) {
+    if (order.stockReleased) return;
+    for (const item of order.items) await this.products.release(item);
+    order.stockReleased = true;
+    if (note) order.history.push({ status: order.status, by: "system", note });
+  }
+
+  async markSold(order) {
+    for (const item of order.items) await this.products.incrementSold(item.productId, item.qty);
   }
 }
 
-async function releaseOrder(order, by, note) {
-  if (order.stockReleased) return;
-  for (const item of order.items) await releaseLine(item);
-  order.stockReleased = true;
-  if (note) order.history.push({ status: order.status, by, note });
-}
-
-async function markSold(order) {
-  for (const item of order.items) {
-    await Product.updateOne({ _id: item.productId }, { $inc: { sold: item.qty } });
+// Background job: cancel unpaid orders whose hold lapsed. Separate class so the policy
+// (how often, how many) is independent of the stock rules.
+class ReservationSweeper {
+  constructor({ orders, orderState, intervalMs = 60_000 }) {
+    this.orders = orders;
+    this.orderState = orderState;
+    this.intervalMs = intervalMs;
+    this.timer = null;
+  }
+  async runOnce() {
+    const stale = await this.orders.staleReservations();
+    for (const order of stale) {
+      await this.orderState.transition(order, "payment_failed", { by: "system", note: "Reservation expired" });
+      await this.orders.save(order);
+    }
+    return stale.length;
+  }
+  start() {
+    if (this.timer) return;
+    this.timer = setInterval(() => this.runOnce().catch((e) => console.error("sweeper error", e)), this.intervalMs);
+    this.timer.unref();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
   }
 }
 
-// Cancel unpaid orders whose reservation has lapsed and give the stock back.
-async function expireStaleReservations() {
-  const stale = await Order.find({
-    status: "pending_payment",
-    stockReleased: false,
-    reservedUntil: { $lt: new Date() },
-  }).limit(100);
-  for (const order of stale) {
-    order.transition("payment_failed", "system", "Reservation expired");
-    await releaseOrder(order, "system");
-    await order.save();
-  }
-  return stale.length;
-}
-
-let timer = null;
-function startSweeper(intervalMs = 60_000) {
-  if (timer) return;
-  timer = setInterval(() => {
-    expireStaleReservations().catch((e) => console.error("sweeper error", e));
-  }, intervalMs);
-  timer.unref();
-}
-function stopSweeper() {
-  if (timer) clearInterval(timer);
-  timer = null;
-}
-
-module.exports = { reserveAll, releaseOrder, markSold, expireStaleReservations, startSweeper, stopSweeper };
+module.exports = { StockService, ReservationSweeper };

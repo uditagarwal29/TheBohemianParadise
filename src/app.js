@@ -3,11 +3,10 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
-const { config } = require("./config");
+const { createContainer } = require("./bootstrap/container");
 const { notFoundHandler, errorHandler } = require("./shared/errors");
-const { storage } = require("./infrastructure/storage");
 
-// Each feature module exposes an express.Router; this file only wires them.
+// Each module exports a route factory taking the container. This table is the whole HTTP map.
 const modules = [
   ["/api/auth", require("./modules/auth/auth.routes")],
   ["/api/users", require("./modules/users/user.routes")],
@@ -17,9 +16,11 @@ const modules = [
   ["/api/admin", require("./modules/admin/admin.routes")],
 ];
 
-function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVerifier } = {}) {
+function buildApp({ publicDir = path.join(__dirname, "..", "public"), container, overrides } = {}) {
+  const c = container || createContainer(overrides);
+  const { config } = c;
   const app = express();
-  if (googleVerifier) app.set("googleVerifier", googleVerifier); // tests inject a fake verifier
+  app.set("container", c);
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Render terminates TLS in front of us
 
@@ -28,8 +29,7 @@ function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVeri
       contentSecurityPolicy: false,
       crossOriginEmbedderPolicy: false,
       crossOriginResourcePolicy: { policy: "cross-origin" },
-      // Google Sign-In opens a popup that must talk back to this window; the default
-      // "same-origin" COOP severs that channel and GIS falls back to a full-page redirect.
+      // Google Sign-In's popup must talk back to this window; default COOP would sever it.
       crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     })
   );
@@ -38,17 +38,18 @@ function buildApp({ publicDir = path.join(__dirname, "..", "public"), googleVeri
   }
 
   // Webhooks need the raw body: mount before express.json().
-  app.use("/api/webhooks/stripe", require("./modules/orders/stripe.webhook"));
+  app.use("/api/webhooks", require("./modules/orders/order.routes").webhookRoutes(c));
 
   app.use(express.json({ limit: config.http.jsonLimit }));
   app.use("/api", rateLimit({ ...config.http.rateLimit, standardHeaders: "draft-7", legacyHeaders: false }));
 
-  app.get("/api/health", (req, res) => res.json({ ok: true, uptime: process.uptime(), storage: storage().name }));
-  for (const [prefix, router] of modules) app.use(prefix, router);
+  app.get("/api/health", (req, res) => res.json({ ok: true, uptime: process.uptime(), storage: c.storage.name, payments: c.gateway.name }));
+  for (const [prefix, factory] of modules) app.use(prefix, factory(c));
   app.use("/api", notFoundHandler);
 
-  // Locally stored uploads (dev). Cloudinary URLs bypass this entirely.
-  if (storage().name === "local") app.use("/uploads", express.static(storage().dir, { maxAge: "7d", immutable: true }));
+  // Locally stored uploads (dev). CDN-backed adapters return null and serve their own URLs.
+  const uploads = c.storage.staticHandler();
+  if (uploads) app.use("/uploads", uploads);
 
   // Static storefront (Vite build in /public) with SPA fallback for client routes.
   app.use(express.static(publicDir, { maxAge: "1h", index: "index.html" }));

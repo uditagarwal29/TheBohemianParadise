@@ -1,71 +1,79 @@
-const User = require("../users/user.model");
-const { signToken } = require("../../shared/middleware/auth");
 const { unauthorized, conflict, badRequest } = require("../../shared/errors");
-const google = require("../../infrastructure/auth/google");
-const { config } = require("../../config");
 
-async function register({ name, email, password }) {
-  if (await User.exists({ email })) throw conflict("An account with this email already exists");
-  const user = new User({ name, email, emailVerified: false });
-  await user.setPassword(password);
-  await user.save();
-  return { user: user.toPublic(), accessToken: signToken(user) };
-}
-
-async function login({ email, password }) {
-  const user = await User.findOne({ email }).select("+passwordHash");
-  // Same message for unknown email and wrong password: don't leak which accounts exist.
-  if (!user || user.disabled) throw unauthorized("Invalid email or password");
-  if (!user.passwordHash) {
-    // Account exists but was created with Google. Tell them how to get in (the email is theirs; they just typed it).
-    throw unauthorized("This account uses Google sign-in. Continue with Google, or set a password from your account page after signing in.");
+// Sign-up and sign-in. Identity providers (Google today) are injected as adapters, so adding
+// Apple or Facebook is another adapter in the container, not a change here.
+class AuthService {
+  constructor({ users, tokens, identityProviders = [] }) {
+    this.users = users;
+    this.tokens = tokens;
+    this.identityProviders = new Map(identityProviders.map((p) => [p.id, p]));
   }
-  if (!(await user.verifyPassword(password))) throw unauthorized("Invalid email or password");
-  return { user: user.toPublic(), accessToken: signToken(user) };
-}
 
-// Sign in or sign up with a Google ID token. Links to an existing account with the
-// same verified email, so a customer who registered with a password can also use Google.
-async function loginWithGoogle({ idToken }, verify = google.verifyIdToken) {
-  if (!google.enabled()) throw badRequest("Google sign-in is not available");
-  let profile;
-  try {
-    profile = await verify(idToken);
-  } catch {
-    throw unauthorized("Google sign-in failed, please try again");
+  session(user, extra) {
+    return { user: user.toPublic(), accessToken: this.tokens.sign(user, extra) };
   }
-  if (!profile.email) throw unauthorized("Your Google account has no verified email");
 
-  let user = await User.findOne({ $or: [{ googleId: profile.sub }, { email: profile.email }] }).select("+passwordHash");
-  let created = false;
-  if (!user) {
-    user = new User({ name: profile.name, email: profile.email, googleId: profile.sub, avatar: profile.picture, emailVerified: true });
-    created = true;
-  } else {
-    if (user.disabled) throw unauthorized("Account not available");
-    if (!user.googleId) user.googleId = profile.sub;
-    if (!user.avatar && profile.picture) user.avatar = profile.picture;
-    user.emailVerified = true;
+  async register({ name, email, password }) {
+    if (await this.users.exists({ email })) throw conflict("An account with this email already exists");
+    const user = this.users.build({ name, email, emailVerified: false });
+    await user.setPassword(password);
+    await this.users.save(user);
+    return this.session(user);
   }
-  await user.save();
-  return { user: user.toPublic(), accessToken: signToken(user), created };
+
+  async login({ email, password }) {
+    const user = await this.users.findByEmail(email, { withPassword: true });
+    // Same message for unknown email and wrong password: don't leak which accounts exist.
+    if (!user || user.disabled) throw unauthorized("Invalid email or password");
+    if (!user.passwordHash) throw unauthorized("This account uses Google sign-in. Continue with Google, or set a password from your account page after signing in.");
+    if (!(await user.verifyPassword(password))) throw unauthorized("Invalid email or password");
+    return this.session(user);
+  }
+
+  // Sign in or sign up with an external identity. Links to an existing account with the same
+  // verified email so a password customer can also use the provider.
+  async loginWithProvider(providerId, idToken) {
+    const provider = this.identityProviders.get(providerId);
+    if (!provider?.enabled) throw badRequest(`${providerId} sign-in is not available`);
+    let profile;
+    try {
+      profile = await provider.verify(idToken);
+    } catch {
+      throw unauthorized(`${provider.label || "Provider"} sign-in failed, please try again`);
+    }
+    if (!profile.email) throw unauthorized("Your account has no verified email");
+
+    let user = await this.users.findByGoogleOrEmail(profile.sub, profile.email);
+    let created = false;
+    if (!user) {
+      user = this.users.build({ name: profile.name, email: profile.email, googleId: profile.sub, avatar: profile.picture, emailVerified: true });
+      created = true;
+    } else {
+      if (user.disabled) throw unauthorized("Account not available");
+      if (!user.googleId) user.googleId = profile.sub;
+      if (!user.avatar && profile.picture) user.avatar = profile.picture;
+      user.emailVerified = true;
+    }
+    await this.users.save(user);
+    return { ...this.session(user), created };
+  }
+
+  async setInitialPassword(userId, password) {
+    const user = await this.users.findByIdWithPassword(userId);
+    if (user.passwordHash) throw badRequest("You already have a password; use change password instead");
+    await user.setPassword(password);
+    await this.users.save(user);
+  }
+
+  async logoutAll(user) {
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await this.users.save(user);
+  }
+
+  providers() {
+    const google = this.identityProviders.get("google");
+    return { password: true, google: google?.enabled ? { clientId: google.clientId } : false };
+  }
 }
 
-// For Google-only accounts: set a first password (no current password to check).
-async function setInitialPassword(userId, password) {
-  const user = await User.findById(userId).select("+passwordHash");
-  if (user.passwordHash) throw badRequest("You already have a password; use change password instead");
-  await user.setPassword(password);
-  await user.save();
-}
-
-async function logoutAll(user) {
-  user.tokenVersion = (user.tokenVersion || 0) + 1;
-  await user.save();
-}
-
-function providers() {
-  return { password: true, google: google.enabled() ? { clientId: config.auth.googleClientId } : false };
-}
-
-module.exports = { register, login, loginWithGoogle, setInitialPassword, logoutAll, providers };
+module.exports = { AuthService };

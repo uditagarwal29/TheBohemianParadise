@@ -1,23 +1,23 @@
 const mongoose = require("mongoose");
 const { config, assertConfig } = require("./src/config");
+const { createContainer } = require("./src/bootstrap/container");
 const { buildApp } = require("./src/app");
-const stock = require("./src/modules/inventory/stock.service");
 
 async function main() {
   assertConfig();
   await mongoose.connect(config.db.url, { serverSelectionTimeoutMS: 10_000 });
   console.log("MongoDB connected");
 
-  const app = buildApp();
+  const container = createContainer();
+  const app = buildApp({ container });
   const server = app.listen(config.port, config.host, () => {
-    console.log(`TBP backend listening on http://${config.host}:${config.port} (${config.env})`);
+    console.log(`TBP backend listening on http://${config.host}:${config.port} (${config.env}, storage=${container.storage.name}, payments=${container.gateway.name})`);
   });
+  container.sweeper.start();
 
-  stock.startSweeper();
-
-  const shutdown = async (signal) => {
+  const shutdown = (signal) => {
     console.log(`${signal} received, shutting down`);
-    stock.stopSweeper();
+    container.sweeper.stop();
     server.close(async () => {
       await mongoose.disconnect();
       process.exit(0);

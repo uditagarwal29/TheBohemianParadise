@@ -26,7 +26,8 @@ const auth = (t) => ({ Authorization: `Bearer ${t}` });
 before(async () => {
   mongod = await MongoMemoryServer.create();
   await mongoose.connect(mongod.getUri());
-  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public"), googleVerifier: fakeVerify });
+  const fakeGoogle = { id: "google", label: "Google", enabled: true, clientId: process.env.GOOGLE_CLIENT_ID, verify: fakeVerify };
+  app = buildApp({ publicDir: path.join(__dirname, "fixtures", "public"), overrides: { identityProviders: [fakeGoogle] } });
 });
 after(async () => {
   await mongoose.disconnect();

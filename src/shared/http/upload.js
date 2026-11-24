@@ -1,26 +1,22 @@
 const multer = require("multer");
-const { config } = require("../../config");
-const { ALLOWED_MIME } = require("../../infrastructure/storage");
+const { ALLOWED_MIME } = require("../../infrastructure/storage/StorageAdapter");
 const { badRequest } = require("../errors");
 
-// Files are held in memory and handed to the storage driver; nothing is written
-// to the request path, so there is no user-controlled filename on disk.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: config.storage.maxUploadMb * 1024 * 1024, files: 10 },
-  fileFilter: (req, file, cb) => {
-    if (!ALLOWED_MIME[file.mimetype]) return cb(badRequest(`Unsupported image type ${file.mimetype}`));
-    cb(null, true);
-  },
-});
-
-// Translate multer's own errors into our JSON shape.
-function uploadErrors(err, req, res, next) {
-  if (err instanceof multer.MulterError) {
-    const msg = err.code === "LIMIT_FILE_SIZE" ? `Image larger than ${config.storage.maxUploadMb} MB` : err.message;
-    return next(badRequest(msg));
+// Factory: multer kept in memory and handed to the storage adapter; no user-controlled
+// filename ever touches the disk.
+function createUpload({ maxUploadMb }) {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: maxUploadMb * 1024 * 1024, files: 10 },
+    fileFilter: (req, file, cb) => (ALLOWED_MIME[file.mimetype] ? cb(null, true) : cb(badRequest(`Unsupported image type ${file.mimetype}`))),
+  });
+  function errors(err, req, res, next) {
+    if (err instanceof multer.MulterError) {
+      return next(badRequest(err.code === "LIMIT_FILE_SIZE" ? `Image larger than ${maxUploadMb} MB` : err.message));
+    }
+    next(err);
   }
-  next(err);
+  return { images: (field = "images", max = 10) => [upload.array(field, max), errors] };
 }
 
-module.exports = { upload, uploadErrors };
+module.exports = { createUpload };

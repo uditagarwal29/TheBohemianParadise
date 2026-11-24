@@ -39,6 +39,11 @@ const config = {
     manualReservationMinutes: int("MANUAL_RESERVATION_MINUTES", 24 * 60),
   },
 
+  catalog: {
+    // Seconds to memoise public catalogue reads; 0 disables the cache (tests, development).
+    cacheSeconds: int("CATALOG_CACHE_SECONDS", process.env.NODE_ENV === "production" ? 30 : 0),
+  },
+
   payments: {
     stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",

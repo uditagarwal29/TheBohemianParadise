@@ -12,10 +12,11 @@
     "dev": "node --watch index.js",
     "dev:stack": "node scripts/dev-stack.js",
     "build": "npm --prefix frontend ci --include=dev && npm --prefix frontend run build",
-    "test": "node --test test/",
+    "test": "node --test test/ test/unit/",
     "seed:admin": "node scripts/create-admin.js",
     "migrate": "node scripts/migrate-v2.js",
-    "postinstall": "node scripts/render-postinstall.js"
+    "postinstall": "node scripts/render-postinstall.js",
+    "test:unit": "node --test test/unit/"
   },
   "license": "ISC",
   "dependencies": {
